@@ -13,12 +13,15 @@ PROFILE_WEIGHT = 0.20
 JD_WEIGHT = 0.80
 
 BASE_DIR = Path(__file__).resolve().parent
-ROOT_DIR = BASE_DIR.parent
 
-POSSIBLE_DATA_FILES = [
+
+# =====================================================
+# DATA PATH (CLEAN + SAFE)
+# =====================================================
+
+DATA_PATHS = [
     BASE_DIR / "scored_candidates.json",
-    ROOT_DIR / "scored_candidates.json",
-    ROOT_DIR / "Backend" / "scored_candidates.json",
+    BASE_DIR.parent / "scored_candidates.json",
 ]
 
 
@@ -52,29 +55,23 @@ SEMANTIC_MAP = {
 
 
 # =====================================================
-# LOAD DATA (SAFE)
+# LOAD DATA (FIXED ONCE ONLY)
 # =====================================================
 
 @lru_cache(maxsize=1)
 def load_candidates():
 
-    data_file = None
-
-    for path in POSSIBLE_DATA_FILES:
+    for path in DATA_PATHS:
         if path.exists():
-            data_file = path
-            break
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-    if data_file is None:
-        raise FileNotFoundError("scored_candidates.json not found in any known path")
+            if isinstance(data, dict):
+                data = data.get("data", [])
 
-    with open(data_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+            return data
 
-    if not isinstance(data, list):
-        raise ValueError("scored_candidates.json must be a LIST of candidates")
-
-    return data
+    raise RuntimeError(f"Dataset not found in: {DATA_PATHS}")
 
 
 # =====================================================
@@ -87,7 +84,6 @@ def extract_jd_requirements(job_description: str) -> Set[str]:
     jd = re.sub(r"[^a-z0-9+#.\s]", " ", jd)
 
     tokens = set(jd.split())
-
     detected = set()
 
     for skill in MASTER_SKILLS:
@@ -117,15 +113,12 @@ def calculate_jd_score(candidate: Dict, requirements: Set[str]):
 
     matched = set()
 
-    # direct match
     matched |= skills & requirements
 
-    # semantic match
     for req in requirements:
         if req in SEMANTIC_MAP and skills & SEMANTIC_MAP[req]:
             matched.add(req)
 
-    # feature boosts
     if candidate.get("has_python") and "python" in requirements:
         matched.add("python")
 
@@ -143,20 +136,17 @@ def calculate_jd_score(candidate: Dict, requirements: Set[str]):
 
 
 # =====================================================
-# MAIN ENGINE (LINKEDIN STYLE FIXED)
+# MAIN ENGINE (STABLE + LINKEDIN STYLE)
 # =====================================================
 
 def get_top_candidates(job_description: str, top_k: int = 10):
 
-    try:
-        candidates = load_candidates()
-    except Exception as e:
-        raise RuntimeError(f"Candidate load failed: {str(e)}")
+    candidates = load_candidates()
 
-    requirements = extract_jd_requirements(job_description)
     jd_text = (job_description or "").lower()
+    requirements = extract_jd_requirements(job_description)
 
-    # 🔥 IMPORTANT FIX: fallback prevents identical outputs
+    # fallback safety
     if not requirements:
         requirements = {"python", "javascript"}
 
@@ -164,39 +154,23 @@ def get_top_candidates(job_description: str, top_k: int = 10):
 
     for c in candidates:
 
-        profile = c.get("final_score", 0)
-
-        try:
-            profile = float(profile)
-        except:
-            profile = 0.0
-
+        profile = float(c.get("final_score", 0) or 0)
         profile = min(profile, 100)
 
         jd_score, matched, missing = calculate_jd_score(c, requirements)
 
-        # -----------------------------
-        # ROLE BIAS (CRITICAL FIX)
-        # -----------------------------
         role_boost = 0
-
         skills = set(map(str.lower, c.get("skill_names", [])))
 
-        if ("frontend" in jd_text or "react" in jd_text):
-            if "react" in skills:
-                role_boost += 10
+        if ("frontend" in jd_text or "react" in jd_text) and "react" in skills:
+            role_boost += 10
 
-        if ("machine learning" in jd_text or "data science" in jd_text):
-            if c.get("has_ml"):
-                role_boost += 10
+        if ("machine learning" in jd_text or "data science" in jd_text) and c.get("has_ml"):
+            role_boost += 10
 
-        if ("rag" in jd_text or "llm" in jd_text):
-            if c.get("has_retrieval_experience"):
-                role_boost += 10
+        if ("rag" in jd_text or "llm" in jd_text) and c.get("has_retrieval_experience"):
+            role_boost += 10
 
-        # -----------------------------
-        # FINAL SCORE (STABLE + JD DRIVEN)
-        # -----------------------------
         final_score = (
             (jd_score ** 1.1) * JD_WEIGHT +
             profile * PROFILE_WEIGHT +
@@ -206,8 +180,6 @@ def get_top_candidates(job_description: str, top_k: int = 10):
         ranked.append({
             "candidate_id": c.get("candidate_id", "UNKNOWN"),
             "title": c.get("current_title", ""),
-
-            # frontend compatibility
             "skills": c.get("skill_names", []),
             "skill_names": c.get("skill_names", []),
 
@@ -217,26 +189,20 @@ def get_top_candidates(job_description: str, top_k: int = 10):
 
             "matched_skills": matched,
             "missing_skills": missing,
-
             "explanation": f"Matched {len(matched)}/{len(requirements)} skills"
         })
 
     ranked.sort(key=lambda x: x["final_score"], reverse=True)
 
-    # -----------------------------
-    # DIVERSITY FILTER (LinkedIn-style)
-    # -----------------------------
+    # diversity filter
     final = []
     seen = set()
 
     for r in ranked:
-
         key = tuple(sorted(r["matched_skills"][:2]))
-
         if key not in seen:
             final.append(r)
             seen.add(key)
-
         if len(final) == top_k:
             break
 
@@ -249,10 +215,7 @@ def get_top_candidates(job_description: str, top_k: int = 10):
 
 if __name__ == "__main__":
 
-    jd = """
-    AI Engineer
-    Python Machine Learning RAG LangChain
-    """
+    jd = "AI Engineer Python Machine Learning RAG LangChain"
 
     results = get_top_candidates(jd, 5)
 
