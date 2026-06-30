@@ -1,23 +1,25 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
+from models import (
+    CandidateRequest,
+    RankingResponse,
+)
 from recruiter_engine import get_top_candidates
 
-app = FastAPI(title="AI Recruiter API")
+
+app = FastAPI(
+    title="AI Recruiter API"
+)
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Change to your frontend URL after deployment
+    allow_origins=["*"],  # Change after deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-class RankRequest(BaseModel):
-    job_description: str
-    top_k: int = 5
 
 
 @app.get("/")
@@ -27,12 +29,31 @@ def home():
     }
 
 
-@app.post("/rank_candidates")
-def rank_candidates(request: RankRequest):
+@app.post(
+    "/rank_candidates",
+    response_model=RankingResponse
+)
+def rank_candidates(
+    request: CandidateRequest
+):
+
+    # Extra safety check
+    if not request.job_description.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Job description cannot be empty"
+        )
+
+    top_k = max(
+        1,
+        min(request.top_k, 100)
+    )
+
     try:
+
         candidates = get_top_candidates(
             request.job_description,
-            request.top_k
+            top_k
         )
 
         return {
@@ -42,7 +63,8 @@ def rank_candidates(request: RankRequest):
         }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
