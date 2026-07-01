@@ -1,0 +1,109 @@
+# Redrob Hackathon — Submission Metadata Template
+#
+# Copy this file to your repo root as `submission_metadata.yaml` and fill it in.
+# The fields here should match what you submit via the portal at upload time.
+# Stage 3 review uses this file to verify your portal metadata.
+
+# ============================================================================
+# Team identity
+# ============================================================================
+team_name: "Void Main"  # Used in leaderboard and announcements
+
+primary_contact:
+  name: "Aashish Panday"
+  email: "primary@example.com"   # Used for all organizer communication
+  phone: "+91-9198971216"        # Used for top-50 / top-10 outreach
+
+team_members:
+  - name: "Aashish Panday"
+    email: "pandeyashish1605@gmail.com"
+    role: "Backend /AI architecture"          # Optional, e.g. "Team Lead", "Backend", "Data"
+  - name: "Mayank Karnatak"
+    email: "mkarnatak23@gmail.com"
+    role: "Frontend & UX"
+  - name: "Parth Garg"
+    email: "parthg366@gmail.com"
+    role: "Data Processing Pipeline & LLM "         
+  - name: "Tanishk Singh"
+    email: "tanishk73010@gmail.com"
+    role: "AI Agents"         
+  # Add more members as needed; solo participants list just one member
+
+# ============================================================================
+# Code and reproducibility
+# ============================================================================
+github_repo: "https://github.com/Jishnu-ParthGarg/Ai_recruiter_engine"
+# Required. Must be reachable. Private repos OK if you can grant organizer
+# access at Stage 3 (the email to add will be communicated then).
+
+sandbox_link: "https://huggingface.co/spaces/YOUR_USERNAME/redrob-ranker"
+# Required. A working hosted environment where the ranker can be run on a small
+# candidate sample. See Section 10.5 of submission_spec.md for acceptable
+# platforms (HuggingFace Spaces, Streamlit Cloud, Replit, Colab, Docker, Binder).
+
+reproduce_command: "python rank.py --candidates ./data/candidates.jsonl.gz --out ./submission.csv"
+# The single command that produces submission.csv from candidates.jsonl.
+# Should run end-to-end within 5 minutes on CPU with 16GB RAM and no network.
+
+# ============================================================================
+# Compute environment
+# ============================================================================
+compute:
+  platform: "DESKTOP-V5TB6EG (Windows, Intel i5-13450HX, RTX 3050)"
+  cpu_cores: 10
+  ram_gb: 8
+  python_version: "3.13.14"
+  os: "Windows 11"
+  uses_gpu_for_inference: false
+  has_network_during_ranking: false
+  pre_computation_required: false
+  pre_computation_time_minutes: 0
+
+# ============================================================================
+# AI tools declaration
+# ============================================================================
+# Transparency only — declared use is NOT penalized. Be honest. Stage 5 interview
+# may verify these declarations against your code; declarations that contradict
+# your code or your interview are flagged.
+aai_tools_used:
+  - "Claude"
+  - "ChatGPT"
+
+ai_usage_summary: |
+  Used Claude and ChatGPT for architecture discussion, code review, and debugging.
+  No candidate data was fed to any LLM during ranking.
+
+
+# ============================================================================
+# Approach summary (optional but recommended)
+# ============================================================================
+methodology_summary: |
+  Our solution is an LLM-assisted candidate ranking system combining job
+  description understanding with multi-signal candidate evaluation and
+  explainable ranking. Job descriptions are parsed using Llama 3.1 via the
+  Groq API, extracting structured requirements — skills, role, seniority,
+  and domain expertise — while filtering out vague terms.
+ 
+  Each candidate is evaluated across five dimensions: Technical (skills, ML
+  and retrieval expertise, leadership indicators), Behavioral (recruiter
+  response rate, interview completion, open-to-work status), Logistics
+  (notice period, availability), Career (experience, role, industry,
+  progression), and Risk (honeypot detection, title-experience mismatches,
+  consulting-only profiles).
+ 
+  The final score combines these signals with a JD-match score, applying
+  soft penalties for risk indicators rather than hard filtering, preserving
+  candidate diversity. A fallback chain (LLM parsing -> keyword extraction
+  -> role-to-skill mapping -> general ranking) ensures graceful degradation.
+  Every result includes a recruiter-readable explanation based solely on
+  computed features. Evaluated on 61,579 candidates after processing;
+  end-to-end response time is under one second on CPU, no GPU required.
+# ============================================================================
+# Declarations
+# ============================================================================
+declarations:
+  read_submission_spec: true
+  code_is_original_work: true
+  no_collusion: true
+  honeypot_check_done: false
+  reproduction_tested: true
